@@ -75,13 +75,25 @@ jsFiles.forEach(file => {
     }
 
     // Patch 4: Inject Fake Pro Subscription
-    const accountReducerRegex = /return (\w+)\.account&&JSON\.stringify\((\w+)\)===JSON\.stringify\(\1\.account\)\?\1:{\.\.\.\1,account:\2}/g;
+    // Patch 4: Inject Fake Pro Subscription (Robust)
+    // Target: return e.account && JSON.stringify(t) === JSON.stringify(e.account) ? e : { ...e, account: t }
+    // Using simple regex that captures variable names but is tolerant of spaces
+    const accountReducerRegex = /return\s+(\w+)\.account\s*&&\s*JSON\.stringify\((\w+)\)\s*===\s*JSON\.stringify\(\1\.account\)\s*\?\s*\1\s*:\s*\{\s*\.\.\.\1\s*,\s*account\s*:\s*\2\s*\}/g;
+    
     if (accountReducerRegex.test(content)) {
         console.log(`[Patch 4] Found 'Account Reducer' in ${path.basename(file)}`);
         
         content = content.replace(accountReducerRegex, (match, stateVar, payloadVar) => {
-            const subObj = `{id:"pro_unlock",plan:"yearly",status:"active",startedAt:"2022-01-01T00:00:00.000Z",currentPeriodEnd:"2099-01-01T00:00:00.000Z",remoteChannel:${payloadVar}.remoteChannel}`;
-            return `if(${payloadVar}){${payloadVar}={...${payloadVar},subscription:${subObj}};}${match}`;
+             // We replace the tail 'account: t' with 'account: t ? { ...t, subscription: ... } : t'
+             // This avoids injection of statements and handles nulls safely.
+             
+             const subObj = `{id:"pro_unlock",plan:"yearly",status:"active",startedAt:"2022-01-01T00:00:00.000Z",currentPeriodEnd:"2099-01-01T00:00:00.000Z",remoteChannel:${payloadVar}.remoteChannel}`;
+             
+             // Reconstruct the return statement with the patched account object
+             // Original structure: return e.account && ... ? e : { ...e, account: t }
+             // New structure:      return e.account && ... ? e : { ...e, account: t ? {...t, subscription: sub} : t }
+             
+             return `return ${stateVar}.account&&JSON.stringify(${payloadVar})===JSON.stringify(${stateVar}.account)?${stateVar}:{...${stateVar},account:${payloadVar}?{...${payloadVar},subscription:${subObj}}:${payloadVar}}`;
         });
         modified = true;
     }
