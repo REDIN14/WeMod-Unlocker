@@ -46,6 +46,12 @@ console.log(`Found ${jsFiles.length} JS bundle files.`);
 let patchesApplied = 0;
 
 jsFiles.forEach(file => {
+    // CRITICAL: Skip 'overlay' bundles. Patching them causes crashes because the 'host' object might be missing in the overlay context.
+    if (path.basename(file).includes('overlay')) {
+        console.log(`[i] Skipping overlay file: ${path.basename(file)}`);
+        return;
+    }
+
     let content = fs.readFileSync(file, 'utf8');
     let originalContent = content;
     let modified = false;
