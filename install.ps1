@@ -108,11 +108,10 @@ jsFiles.forEach(file => {
         content = content.replace(accountReducerTarget, injection);
         modified = true;
     }
-        if (content !== originalContent) {
-            fs.writeFileSync(file, content, 'utf8');
-            console.log('> Applied patches to ' + path.basename(file));
-            patchesApplied++;
-        }
+    if (content !== originalContent) {
+        fs.writeFileSync(file, content, 'utf8');
+        console.log('> Applied patches to ' + path.basename(file));
+        patchesApplied++;
     }
 });
 
