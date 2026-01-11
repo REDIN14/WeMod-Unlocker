@@ -16,11 +16,11 @@ const path = require('path');
 const defaultPath = path.join(process.env.LOCALAPPDATA, 'Wand', 'app-12.6.0', 'resources', 'app_unpacked');
 const TARGET_DIR = process.argv[2] || defaultPath;
 
-console.log(`Scanning directory: ${TARGET_DIR}`);
+console.log('Scanning directory: ' + TARGET_DIR);
 
 if (!fs.existsSync(TARGET_DIR)) {
-    console.error(`Error: Directory not found: ${TARGET_DIR}`);
-    console.error("Please make sure WeMod is installed and you are pointing to the correct version folder.");
+    console.error('Error: Directory not found: ' + TARGET_DIR);
+    console.error('Please make sure WeMod is installed and you are pointing to the correct version folder.');
     process.exit(1);
 }
 
@@ -41,7 +41,7 @@ function getFiles(dir, fileList = []) {
 }
 
 const jsFiles = getFiles(TARGET_DIR);
-console.log(`Found ${jsFiles.length} JS bundle files.`);
+console.log('Found ' + jsFiles.length + ' JS bundle files.');
 
 let patchesApplied = 0;
 
@@ -49,12 +49,9 @@ jsFiles.forEach(file => {
     const fileName = path.basename(file);
     const lowerName = fileName.toLowerCase();
     
-    // Debug Log
-    // console.log(`Checking: ${fileName}`);
-
-    // CRITICAL: Skip 'overlay' bundles.
+    // CRITICAL: Skip 'overlay' bundles to prevent crashes.
     if (lowerName.includes('overlay')) {
-        console.log(`[i] Skipping excluded file: ${fileName}`);
+        console.log('[i] Skipping' + fileName);
         return;
     }
 
@@ -63,62 +60,52 @@ jsFiles.forEach(file => {
     let modified = false;
 
     // --- Patch 1: Unlock Pro in Trainer ---
-    // Exact string from manual session audit
     const isProTarget = 'get isPro(){return!!this.host?.account?.subscription}';
     if (content.includes(isProTarget)) {
-        console.log(`[Patch 1] Found 'isPro' check in ${path.basename(file)}`);
+        console.log('[Patch 1] Found isPro check in ' + fileName);
         content = content.replace(isProTarget, 'get isPro(){return!0}');
         modified = true;
     }
 
     // --- Patch 2: Show Pro-Only Settings ---
-    // Exact string from manual session audit
-    // Note: The variable 't' was observed in 'app-9aed85ed...'. 
-    // If variable names change per file, this might be fragile, but it worked when we did it manually.
-    // 't.proOnly&&!this.subscription'
-    const settingsTarget = '.proOnly&&!this.subscription'; // Removed 't' to be slightly more robust but still simple string match
-    // Actually, replacing '.proOnly&&!this.subscription' with '.proOnly&&!1' works regardless of variable name
+    const settingsTarget = '.proOnly&&!this.subscription';
     if (content.includes(settingsTarget)) {
-        console.log(`[Patch 2] Found 'proOnly' settings filter in ${path.basename(file)}`);
+        console.log('[Patch 2] Found proOnly settings filter in ' + fileName);
         content = content.replace(settingsTarget, '.proOnly&&!1');
         modified = true;
     }
 
     // --- Patch 3: Enable Save Cheats ---
-    // Exact string from manual session audit
     const saveCheatsTarget = 'get canUse(){return this.account&&!!this.account.subscription}';
     if (content.includes(saveCheatsTarget)) {
-        console.log(`[Patch 3] Found 'SaveCheats' check in ${path.basename(file)}`);
+        console.log('[Patch 3] Found SaveCheats check in ' + fileName);
         content = content.replace(saveCheatsTarget, 'get canUse(){return!0}');
         modified = true;
     }
     
-    // --- Patch 4: Account Reducer ---
-    // Re-enabled with SAFE CLONING strategy.
-    // We match the exact string, which guarantees variables are 'e' and 't'.
-    // We prepend logic to clone 't' and add the subscription, avoiding mutation of frozen objects.
+    // --- Patch 4: Account Reducer (Subscription Injection) ---
     const accountReducerTarget = 'return e.account&&JSON.stringify(t)===JSON.stringify(e.account)?e:{...e,account:t}';
-    
     if (content.includes(accountReducerTarget)) {
-        console.log('[Patch 4] Found Account Reducer in ' + path.basename(file));
-        
-        // Safe injection with cloning
+        console.log('[Patch 4] Found Account Reducer in ' + fileName);
+        // Inject fake subscription by cloning 't' to avoid frozen object errors
         const injection = 'if(t){t={...t,subscription:{id:"pro_unlock",plan:"yearly",status:"active",startedAt:"2022-01-01T00:00:00.000Z",currentPeriodEnd:"2099-01-01T00:00:00.000Z",remoteChannel:t.remoteChannel||null}}};' + accountReducerTarget;
-        
         content = content.replace(accountReducerTarget, injection);
         modified = true;
     }
-    if (content !== originalContent) {
-        fs.writeFileSync(file, content, 'utf8');
-        console.log('> Applied patches to ' + path.basename(file));
-        patchesApplied++;
+
+    if (modified) {
+        if (content !== originalContent) {
+            fs.writeFileSync(file, content, 'utf8');
+            console.log('> Applied patches to ' + fileName);
+            patchesApplied++;
+        }
     }
 });
 
 if (patchesApplied === 0) {
-    console.log("No patches were applied. Logic might have changed or files are already patched.");
+    console.log('No patches were applied. Files might be already patched or logic has changed.');
 } else {
-    console.log("Success! Patches applied. Please restart WeMod.");
+    console.log('Success! Patches applied. Please restart WeMod.');
 }
 '@
 

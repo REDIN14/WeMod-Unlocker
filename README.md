@@ -1,29 +1,32 @@
 # WeMod Pro Unlocker
 
-A simple automation script to unlock local Pro features in WeMod.
+A robust, one-click installer to unlock WeMod Pro features locally.
 
-## Features Unlocked
-- **Save Cheats**: Enable saving of cheat configurations.
-- **Pro Settings**: Access Pro-only settings in the menu.
-- **Pro UI**: Unlocks various UI themes and Pro toggles.
+## ✨ Features
+- **Pro Status**: Unlocks the Pro badge and UI interface.
+- **Save Cheats**: Enable saving mod configurations.
+- **Pro Settings**: Access all Pro-only trainer settings.
+- **Safe & Revertible**: Automatically creates a backup (`app.asar.bak`) for easy restoration.
 
-> **Note:** Remote Control (Mobile App) features are **server-side** and cannot be unlocked.
+## 🚀 Installation
 
-## Easy Install (One Command)
-Run this in **PowerShell**:
+Run the following command in **PowerShell**:
 
 ```powershell
 iex "& { $(irm https://raw.githubusercontent.com/REDIN14/WeMod-Unlocker/main/install.ps1) }"
 ```
 
-## Manual Usage
-1.  **Install Node.js**: Ensure you have [Node.js](https://nodejs.org/) installed.
-2.  **Download**: Clone or download this repository.
-3.  **Run**: Right-click `install.ps1` and select **"Run with PowerShell"**.
+## 🛠️ How it Works
+This installer performs targeted, character-exact patching on the WeMod source files:
+1. **Unpacks** `app.asar` using Node.js.
+2. **Patches** core logic (isPro, Settings, SaveCheats, Account State).
+3. **Clones** objects during injection to prevent "read-only" crashes.
+4. **Excludes** the game overlay to ensure stability and compatibility.
+5. **Repacks** the application files seamlessly.
 
-## How it works
-The script:
-1.  Finds your installed WeMod version in `%LOCALAPPDATA%`.
-2.  Unpacks the application source code (`app.asar`).
-3.  Applies targeted regular-expression replacements.
-4.  Repacks the application.
+## ⚠️ Requirements
+- [Node.js](https://nodejs.org/) (Required for patching logic).
+- WeMod installed on Windows.
+
+---
+*Disclaimer: This project is for educational purposes. Support developers by purchasing Pro if you enjoy the software.*
