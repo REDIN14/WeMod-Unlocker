@@ -81,7 +81,7 @@ jsFiles.forEach(file => {
         
         content = content.replace(accountReducerRegex, (match, stateVar, payloadVar) => {
             const subObj = `{id:"pro_unlock",plan:"yearly",status:"active",startedAt:"2022-01-01T00:00:00.000Z",currentPeriodEnd:"2099-01-01T00:00:00.000Z",remoteChannel:${payloadVar}.remoteChannel}`;
-            return `${payloadVar}.subscription=${subObj};return ${match}`;
+            return `${payloadVar}.subscription=${subObj};${match}`;
         });
         modified = true;
     }
