@@ -78,8 +78,9 @@ jsFiles.forEach(file => {
     const accountReducerRegex = /return (\w+)\.account&&JSON\.stringify\((\w+)\)===JSON\.stringify\(\1\.account\)\?\1:{\.\.\.\1,account:\2}/g;
     if (accountReducerRegex.test(content)) {
         console.log(`[Patch 4] Found 'Account Reducer' in ${path.basename(file)}`);
-        const subObj = '{id:"pro_unlock",plan:"yearly",status:"active",startedAt:"2022-01-01T00:00:00.000Z",currentPeriodEnd:"2099-01-01T00:00:00.000Z",remoteChannel:$2.remoteChannel}';
+        
         content = content.replace(accountReducerRegex, (match, stateVar, payloadVar) => {
+            const subObj = `{id:"pro_unlock",plan:"yearly",status:"active",startedAt:"2022-01-01T00:00:00.000Z",currentPeriodEnd:"2099-01-01T00:00:00.000Z",remoteChannel:${payloadVar}.remoteChannel}`;
             return `${payloadVar}.subscription=${subObj};return ${match}`;
         });
         modified = true;
@@ -144,13 +145,12 @@ if (Test-Path $unpackedDir) {
 Set-Location $resourcesDir
 try {
     if (-not (Get-Command npx -ErrorAction SilentlyContinue)) {
-        Write-Color "[!] npx not found. Make sure Node.js is installed correctly." "Red"
-        Pause
-        exit 1
+         Write-Color "[!] npx not found. Make sure Node.js is installed correctly." "Red"
+         Pause
+         exit 1
     }
     cmd /c "npx -y asar extract app.asar app_unpacked"
-}
-catch {
+} catch {
     Write-Color "[!] Failed to unpack asar: $_" "Red"
     Pause
     exit 1
@@ -162,11 +162,9 @@ $tempJsPath = Join-Path $env:TEMP "wemod_patcher_temp.js"
 try {
     Set-Content -Path $tempJsPath -Value $patcherJsContent -Encoding UTF8
     node $tempJsPath "$unpackedDir"
-}
-catch {
+} catch {
     Write-Color "[!] Patch script execution failed: $_" "Red"
-}
-finally {
+} finally {
     if (Test-Path $tempJsPath) { Remove-Item $tempJsPath }
 }
 
@@ -178,8 +176,7 @@ try {
         Write-Color "[+] Backup created at app.asar.bak" "Gray"
     }
     cmd /c "npx -y asar pack app_unpacked app.asar"
-}
-catch {
+} catch {
     Write-Color "[!] Failed to repack asar. Restoring backup..." "Red"
     if (Test-Path "$asarPath.bak") {
         Move-Item "$asarPath.bak" $asarPath -Force
