@@ -137,6 +137,15 @@ Write-Color "[+] Found WeMod version: $($latestApp.Name)" "Green"
 
 # 3. Unpack ASAR
 Write-Color "[*] Unpacking app.asar... (This may take a moment)" "Cyan"
+# Restore backup if exists to ensure clean slate
+if (Test-Path "$asarPath.bak") {
+    Write-Color "[i] Found backup. Restoring original app.asar to ensure clean patch..." "Yellow"
+    Copy-Item -Path "$asarPath.bak" -Destination "$asarPath" -Force
+} else {
+    Write-Color "[+] Creating backup at app.asar.bak" "Gray"
+    Copy-Item -Path "$asarPath" -Destination "$asarPath.bak"
+}
+
 if (Test-Path $unpackedDir) {
     Write-Color "[-] Cleaning up previous unpacked folder..." "Yellow"
     Remove-Item -Path $unpackedDir -Recurse -Force
@@ -171,10 +180,6 @@ try {
 # 5. Repack ASAR
 Write-Color "[*] Repacking app.asar..." "Cyan"
 try {
-    if (-not (Test-Path "$asarPath.bak")) {
-        Move-Item $asarPath "$asarPath.bak"
-        Write-Color "[+] Backup created at app.asar.bak" "Gray"
-    }
     cmd /c "npx -y asar pack app_unpacked app.asar"
 } catch {
     Write-Color "[!] Failed to repack asar. Restoring backup..." "Red"
