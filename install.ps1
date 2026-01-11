@@ -98,8 +98,8 @@ jsFiles.forEach(file => {
     // We match the exact string, which guarantees variables are 'e' and 't'.
     // We prepend logic to clone 't' and add the subscription, avoiding mutation of frozen objects.
     // --- Patch 4: Account Reducer ---
-    // Update: Uses the SPACED version confirmed from diagnostic logs.
-    const accountReducerTarget = 'return e.account && JSON.stringify(t) === JSON.stringify(e.account) ? e : { ...e, account: t }';
+    // Update: Reverting to MINIFIED (no spaces) string as proven by Step 1198 logs.
+    const accountReducerTarget = 'return e.account&&JSON.stringify(t)===JSON.stringify(e.account)?e:{...e,account:t}';
     
     if (content.includes(accountReducerTarget)) {
         console.log(`[Patch 4] Found 'Account Reducer' in ${path.basename(file)}`);
