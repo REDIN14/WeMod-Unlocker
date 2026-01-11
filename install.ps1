@@ -97,14 +97,14 @@ jsFiles.forEach(file => {
     // Re-enabled with SAFE CLONING strategy.
     // We match the exact string, which guarantees variables are 'e' and 't'.
     // We prepend logic to clone 't' and add the subscription, avoiding mutation of frozen objects.
-    const accountReducerTarget = 'return e.account&&JSON.stringify(t)===JSON.stringify(e.account)?e:{...e,account:t}';
+    // --- Patch 4: Account Reducer ---
+    // Update: Uses the SPACED version confirmed from diagnostic logs.
+    const accountReducerTarget = 'return e.account && JSON.stringify(t) === JSON.stringify(e.account) ? e : { ...e, account: t }';
     
     if (content.includes(accountReducerTarget)) {
         console.log(`[Patch 4] Found 'Account Reducer' in ${path.basename(file)}`);
         
-        // Safe injection: Check if 't' exists, if so, clone it and add subscription.
-        // We use 'var' to be safe regarding scoping, though 'const' is fine in block.
-        // We handle t.remoteChannel access safely.
+        // Safe injection with cloning
         const injection = 'if(t){t={...t,subscription:{id:"pro_unlock",plan:"yearly",status:"active",startedAt:"2022-01-01T00:00:00.000Z",currentPeriodEnd:"2099-01-01T00:00:00.000Z",remoteChannel:t.remoteChannel||null}}};' + accountReducerTarget;
         
         content = content.replace(accountReducerTarget, injection);
