@@ -12,15 +12,18 @@ $patcherJsContent = @'
 const fs = require('fs');
 const path = require('path');
 
-// Configuration
-const defaultPath = path.join(process.env.LOCALAPPDATA, 'Wand', 'app-12.6.0', 'resources', 'app_unpacked');
-const TARGET_DIR = process.argv[2] || defaultPath;
+// Get target directory from command line or use default
+const TARGET_DIR = process.argv[2];
+
+if (!TARGET_DIR) {
+    console.error('Error: No target directory provided');
+    process.exit(1);
+}
 
 console.log('Scanning directory: ' + TARGET_DIR);
 
 if (!fs.existsSync(TARGET_DIR)) {
     console.error('Error: Directory not found: ' + TARGET_DIR);
-    console.error('Please make sure WeMod is installed and you are pointing to the correct version folder.');
     process.exit(1);
 }
 
@@ -31,10 +34,8 @@ function getFiles(dir, fileList = []) {
         const stat = fs.statSync(filePath);
         if (stat.isDirectory()) {
             getFiles(filePath, fileList);
-        } else {
-            if (file.endsWith('.bundle.js')) {
-                fileList.push(filePath);
-            }
+        } else if (file.endsWith('.bundle.js')) {
+            fileList.push(filePath);
         }
     }
     return fileList;
@@ -48,10 +49,10 @@ let patchesApplied = 0;
 jsFiles.forEach(file => {
     const fileName = path.basename(file);
     const lowerName = fileName.toLowerCase();
-    
-    // CRITICAL: Skip 'overlay' bundles to prevent crashes.
+
+    // Skip 'overlay' bundles to prevent crashes
     if (lowerName.includes('overlay')) {
-        console.log('[i] Skipping' + fileName);
+        console.log('[i] Skipping ' + fileName);
         return;
     }
 
@@ -82,32 +83,100 @@ jsFiles.forEach(file => {
         content = content.replace(saveCheatsTarget, 'get canUse(){return!0}');
         modified = true;
     }
-    
+
     // --- Patch 4: Account Reducer (Subscription Injection) ---
     const accountReducerTarget = 'return e.account&&JSON.stringify(t)===JSON.stringify(e.account)?e:{...e,account:t}';
     if (content.includes(accountReducerTarget)) {
         console.log('[Patch 4] Found Account Reducer in ' + fileName);
-        // Inject fake subscription by cloning 't' to avoid frozen object errors
         const injection = 'if(t){t={...t,subscription:{id:"pro_unlock",plan:"yearly",status:"active",startedAt:"2022-01-01T00:00:00.000Z",currentPeriodEnd:"2099-01-01T00:00:00.000Z",remoteChannel:t.remoteChannel||null}}};' + accountReducerTarget;
         content = content.replace(accountReducerTarget, injection);
         modified = true;
     }
 
-    if (modified) {
-        if (content !== originalContent) {
-            fs.writeFileSync(file, content, 'utf8');
-            console.log('> Applied patches to ' + fileName);
-            patchesApplied++;
-        }
+    if (modified && content !== originalContent) {
+        fs.writeFileSync(file, content, 'utf8');
+        console.log('> Applied patches to ' + fileName);
+        patchesApplied++;
     }
 });
 
 if (patchesApplied === 0) {
-    console.log('No patches were applied. Files might be already patched or logic has changed.');
+    console.log('[!] No patches applied. Files may already be patched or code structure changed.');
 } else {
-    console.log('Success! Patches applied. Please restart WeMod.');
+    console.log('[+] Success! ' + patchesApplied + ' file(s) patched.');
 }
 '@
+
+# --- Fuse Patcher Function ---
+function Patch-ElectronFuse {
+    param(
+        [string]$ExePath
+    )
+
+    $sentinel = "dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX"
+    $FUSE_WIRE_OFFSET = 32 + 2  # sentinel length + header (01 08)
+    $ASAR_INTEGRITY_FUSE_INDEX = 4  # EnableEmbeddedAsarIntegrityValidation is at index 4
+
+    Write-Color "[*] Patching Electron fuse in $ExePath..." "Cyan"
+
+    if (-not (Test-Path $ExePath)) {
+        Write-Color "[!] Executable not found: $ExePath" "Red"
+        return $false
+    }
+
+    # Create backup
+    $backupPath = "$ExePath.bak"
+    if (-not (Test-Path $backupPath)) {
+        Write-Color "[+] Creating Wand.exe backup..." "Gray"
+        Copy-Item -Path $ExePath -Destination $backupPath -Force
+    } else {
+        Write-Color "[i] Wand.exe backup already exists" "Yellow"
+    }
+
+    try {
+        # Read file as bytes
+        $bytes = [System.IO.File]::ReadAllBytes($ExePath)
+        $content = [System.Text.Encoding]::GetEncoding('iso-8859-1').GetString($bytes)
+
+        # Find sentinel
+        $sentinelIndex = $content.IndexOf($sentinel)
+        if ($sentinelIndex -lt 0) {
+            Write-Color "[!] Electron fuse sentinel not found in binary" "Red"
+            return $false
+        }
+
+        Write-Color "[+] Found fuse sentinel at offset: 0x$($sentinelIndex.ToString('X'))" "Green"
+
+        # Calculate fuse position
+        # Fuse wire: sentinel(32) + header(2) + fuse_index
+        $fuseOffset = $sentinelIndex + $FUSE_WIRE_OFFSET + $ASAR_INTEGRITY_FUSE_INDEX
+        $currentByte = $bytes[$fuseOffset]
+
+        Write-Color "[*] ASAR Integrity fuse at offset 0x$($fuseOffset.ToString('X')): 0x$($currentByte.ToString('X2'))" "Cyan"
+
+        if ($currentByte -eq 0x31) {
+            # Fuse is enabled ('1'), disable it
+            Write-Color "[*] Fuse is ENABLED (0x31). Disabling..." "Yellow"
+            $bytes[$fuseOffset] = 0x30
+            [System.IO.File]::WriteAllBytes($ExePath, $bytes)
+            Write-Color "[+] Successfully disabled ASAR integrity validation fuse" "Green"
+            return $true
+        }
+        elseif ($currentByte -eq 0x30) {
+            Write-Color "[i] Fuse is already DISABLED (0x30). No changes needed." "Green"
+            return $true
+        }
+        else {
+            Write-Color "[!] Unexpected byte value at fuse offset: 0x$($currentByte.ToString('X2'))" "Red"
+            Write-Color "[!] Expected 0x30 ('0') or 0x31 ('1')" "Red"
+            return $false
+        }
+    }
+    catch {
+        Write-Color "[!] Error patching fuse: $_" "Red"
+        return $false
+    }
+}
 
 # --- Script Logic ---
 
@@ -137,20 +206,36 @@ if ($appDirs.Count -eq 0) {
     exit 1
 }
 $latestApp = $appDirs[0]
-$resourcesDir = Join-Path $latestApp.FullName "resources"
+$appDir = $latestApp.FullName
+$resourcesDir = Join-Path $appDir "resources"
 $asarPath = Join-Path $resourcesDir "app.asar"
 $unpackedDir = Join-Path $resourcesDir "app_unpacked"
+$wandExePath = Join-Path $appDir "Wand.exe"
+
 Write-Color "[+] Found WeMod version: $($latestApp.Name)" "Green"
 
-# 3. Unpack ASAR
-Write-Color "[*] Unpacking app.asar... (This may take a moment)" "Cyan"
+# 3. Patch Electron Fuse (CRITICAL - must be done before ASAR modification)
+Write-Color "`n=== STEP 1: Patching Electron Fuse ===" "Magenta"
+$fuseResult = Patch-ElectronFuse -ExePath $wandExePath
+if (-not $fuseResult) {
+    Write-Color "[!] Fuse patching failed. The app may not start after ASAR modification." "Red"
+    Write-Color "[?] Continue anyway? (y/n)" "Yellow"
+    $continue = Read-Host
+    if ($continue -ne 'y') {
+        Pause
+        exit 1
+    }
+}
+
+# 4. Unpack ASAR
+Write-Color "`n=== STEP 2: Unpacking app.asar ===" "Magenta"
 # Restore backup if exists to ensure clean slate
 if (Test-Path "$asarPath.bak") {
-    Write-Color "[i] Found backup. Restoring original app.asar to ensure clean patch..." "Yellow"
+    Write-Color "[i] Found ASAR backup. Restoring original to ensure clean patch..." "Yellow"
     Copy-Item -Path "$asarPath.bak" -Destination "$asarPath" -Force
 }
 else {
-    Write-Color "[+] Creating backup at app.asar.bak" "Gray"
+    Write-Color "[+] Creating ASAR backup at app.asar.bak" "Gray"
     Copy-Item -Path "$asarPath" -Destination "$asarPath.bak"
 }
 
@@ -166,7 +251,11 @@ try {
         Pause
         exit 1
     }
-    cmd /c "npx -y asar extract app.asar app_unpacked"
+    Write-Color "[*] Unpacking app.asar... (This may take a moment)" "Cyan"
+    $null = cmd /c "npx -y asar extract app.asar app_unpacked 2>&1"
+    if (-not (Test-Path $unpackedDir)) {
+        throw "Unpacking failed - directory not created"
+    }
 }
 catch {
     Write-Color "[!] Failed to unpack asar: $_" "Red"
@@ -174,8 +263,8 @@ catch {
     exit 1
 }
 
-# 4. Run JS Patcher (Embedded)
-Write-Color "[*] Applying Pro patches..." "Cyan"
+# 5. Run JS Patcher (Embedded)
+Write-Color "`n=== STEP 3: Applying Pro patches ===" "Magenta"
 $tempJsPath = Join-Path $env:TEMP "wemod_patcher_temp.js"
 try {
     Set-Content -Path $tempJsPath -Value $patcherJsContent -Encoding UTF8
@@ -185,29 +274,37 @@ catch {
     Write-Color "[!] Patch script execution failed: $_" "Red"
 }
 finally {
-    if (Test-Path $tempJsPath) { Remove-Item $tempJsPath }
+    if (Test-Path $tempJsPath) { Remove-Item $tempJsPath -Force }
 }
 
-# 5. Repack ASAR
-Write-Color "[*] Repacking app.asar..." "Cyan"
+# 6. Repack ASAR
+Write-Color "`n=== STEP 4: Repacking app.asar ===" "Magenta"
 try {
-    cmd /c "npx -y asar pack app_unpacked app.asar"
+    Write-Color "[*] Repacking app.asar..." "Cyan"
+    $null = cmd /c "npx -y asar pack app_unpacked app.asar 2>&1"
+    if (-not (Test-Path $asarPath)) {
+        throw "Repacking failed - asar not created"
+    }
 }
 catch {
     Write-Color "[!] Failed to repack asar. Restoring backup..." "Red"
     if (Test-Path "$asarPath.bak") {
-        Move-Item "$asarPath.bak" $asarPath -Force
+        Copy-Item "$asarPath.bak" $asarPath -Force
     }
     Pause
     exit 1
 }
 
-# 6. Cleanup
-Write-Color "[*] Cleaning up..." "Cyan"
+# 7. Cleanup
+Write-Color "`n=== STEP 5: Cleanup ===" "Magenta"
 if (Test-Path $unpackedDir) {
+    Write-Color "[*] Removing unpacked directory..." "Cyan"
     Remove-Item -Path $unpackedDir -Recurse -Force
 }
 
-Write-Color "[SUCCESS] WeMod has been patched! You may now launch the app." "Green"
-Write-Color "Press any key to exit..." "Gray"
+Write-Color "`n========================================" "Green"
+Write-Color "[SUCCESS] WeMod has been patched!" "Green"
+Write-Color "========================================" "Green"
+Write-Color "You may now launch WeMod." "White"
+Write-Color "`nPress any key to exit..." "Gray"
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
