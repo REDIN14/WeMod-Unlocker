@@ -50,45 +50,39 @@ jsFiles.forEach(file => {
     let originalContent = content;
     let modified = false;
 
-    // Patch 1: Unlock Pro in Trainer
-    const proRegex = /get isPro\(\)\{return!!this\.host\?\.account\?\.subscription\}/g;
-    if (proRegex.test(content)) {
+    // --- Patch 1: Unlock Pro in Trainer ---
+    // Exact string from manual session audit
+    const isProTarget = 'get isPro(){return!!this.host?.account?.subscription}';
+    if (content.includes(isProTarget)) {
         console.log(`[Patch 1] Found 'isPro' check in ${path.basename(file)}`);
-        content = content.replace(proRegex, 'get isPro(){return!0}');
+        content = content.replace(isProTarget, 'get isPro(){return!0}');
         modified = true;
     }
 
-    // Patch 2: Show Pro-Only Settings
-    const settingsRegex = /(\w+)\.proOnly&&!this\.subscription/g;
-    if (settingsRegex.test(content)) {
+    // --- Patch 2: Show Pro-Only Settings ---
+    // Exact string from manual session audit
+    // Note: The variable 't' was observed in 'app-9aed85ed...'. 
+    // If variable names change per file, this might be fragile, but it worked when we did it manually.
+    // 't.proOnly&&!this.subscription'
+    const settingsTarget = '.proOnly&&!this.subscription'; // Removed 't' to be slightly more robust but still simple string match
+    // Actually, replacing '.proOnly&&!this.subscription' with '.proOnly&&!1' works regardless of variable name
+    if (content.includes(settingsTarget)) {
         console.log(`[Patch 2] Found 'proOnly' settings filter in ${path.basename(file)}`);
-        content = content.replace(settingsRegex, '$1.proOnly&&!1');
+        content = content.replace(settingsTarget, '.proOnly&&!1');
         modified = true;
     }
 
-    // Patch 3: Enable Save Cheats
-    const saveCheatsRegex = /get canUse\(\)\{return this\.account&&!!this\.account\.subscription\}/g;
-    if (saveCheatsRegex.test(content)) {
+    // --- Patch 3: Enable Save Cheats ---
+    // Exact string from manual session audit
+    const saveCheatsTarget = 'get canUse(){return this.account&&!!this.account.subscription}';
+    if (content.includes(saveCheatsTarget)) {
         console.log(`[Patch 3] Found 'SaveCheats' check in ${path.basename(file)}`);
-        content = content.replace(saveCheatsRegex, 'get canUse(){return!0}');
+        content = content.replace(saveCheatsTarget, 'get canUse(){return!0}');
         modified = true;
     }
-
-    // Patch 4: Inject Fake Pro Subscription
-    // Patch 4: Inject Fake Pro Subscription (DISABLED - causing stability issues)
-    /*
-    const accountReducerRegex = /return\s+(\w+)\.account\s*&&\s*JSON\.stringify\((\w+)\)\s*===\s*JSON\.stringify\(\1\.account\)\s*\?\s*\1\s*:\s*\{\s*\.\.\.\1\s*,\s*account\s*:\s*\2\s*\}/g;
     
-    if (accountReducerRegex.test(content)) {
-        console.log(`[Patch 4] Found 'Account Reducer' in ${path.basename(file)}`);
-        
-        content = content.replace(accountReducerRegex, (match, stateVar, payloadVar) => {
-             const subObj = `{id:"pro_unlock",plan:"yearly",status:"active",startedAt:"2022-01-01T00:00:00.000Z",currentPeriodEnd:"2099-01-01T00:00:00.000Z",remoteChannel:${payloadVar}.remoteChannel}`;
-             return `return ${stateVar}.account&&JSON.stringify(${payloadVar})===JSON.stringify(${stateVar}.account)?${stateVar}:{...${stateVar},account:${payloadVar}?{...${payloadVar},subscription:${subObj}}:${payloadVar}}`;
-        });
-        modified = true; 
-    }
-    */
+    // --- Patch 4: Account Reducer ---
+    // DISABLED FOR STABILITY
 
     if (modified) {
         if (content !== originalContent) {
