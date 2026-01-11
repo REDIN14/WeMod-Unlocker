@@ -46,9 +46,15 @@ console.log(`Found ${jsFiles.length} JS bundle files.`);
 let patchesApplied = 0;
 
 jsFiles.forEach(file => {
-    // CRITICAL: Skip 'overlay' bundles. Patching them causes crashes because the 'host' object might be missing in the overlay context.
-    if (path.basename(file).includes('overlay')) {
-        console.log(`[i] Skipping overlay file: ${path.basename(file)}`);
+    const fileName = path.basename(file);
+    const lowerName = fileName.toLowerCase();
+    
+    // Debug Log
+    // console.log(`Checking: ${fileName}`);
+
+    // CRITICAL: Skip 'overlay' bundles.
+    if (lowerName.includes('overlay')) {
+        console.log(`[i] Skipping excluded file: ${fileName}`);
         return;
     }
 
