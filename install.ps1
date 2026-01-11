@@ -75,28 +75,20 @@ jsFiles.forEach(file => {
     }
 
     // Patch 4: Inject Fake Pro Subscription
-    // Patch 4: Inject Fake Pro Subscription (Robust)
-    // Target: return e.account && JSON.stringify(t) === JSON.stringify(e.account) ? e : { ...e, account: t }
-    // Using simple regex that captures variable names but is tolerant of spaces
+    // Patch 4: Inject Fake Pro Subscription (DISABLED - causing stability issues)
+    /*
     const accountReducerRegex = /return\s+(\w+)\.account\s*&&\s*JSON\.stringify\((\w+)\)\s*===\s*JSON\.stringify\(\1\.account\)\s*\?\s*\1\s*:\s*\{\s*\.\.\.\1\s*,\s*account\s*:\s*\2\s*\}/g;
     
     if (accountReducerRegex.test(content)) {
         console.log(`[Patch 4] Found 'Account Reducer' in ${path.basename(file)}`);
         
         content = content.replace(accountReducerRegex, (match, stateVar, payloadVar) => {
-             // We replace the tail 'account: t' with 'account: t ? { ...t, subscription: ... } : t'
-             // This avoids injection of statements and handles nulls safely.
-             
              const subObj = `{id:"pro_unlock",plan:"yearly",status:"active",startedAt:"2022-01-01T00:00:00.000Z",currentPeriodEnd:"2099-01-01T00:00:00.000Z",remoteChannel:${payloadVar}.remoteChannel}`;
-             
-             // Reconstruct the return statement with the patched account object
-             // Original structure: return e.account && ... ? e : { ...e, account: t }
-             // New structure:      return e.account && ... ? e : { ...e, account: t ? {...t, subscription: sub} : t }
-             
              return `return ${stateVar}.account&&JSON.stringify(${payloadVar})===JSON.stringify(${stateVar}.account)?${stateVar}:{...${stateVar},account:${payloadVar}?{...${payloadVar},subscription:${subObj}}:${payloadVar}}`;
         });
-        modified = true;
+        modified = true; 
     }
+    */
 
     if (modified) {
         if (content !== originalContent) {
@@ -153,7 +145,8 @@ Write-Color "[*] Unpacking app.asar... (This may take a moment)" "Cyan"
 if (Test-Path "$asarPath.bak") {
     Write-Color "[i] Found backup. Restoring original app.asar to ensure clean patch..." "Yellow"
     Copy-Item -Path "$asarPath.bak" -Destination "$asarPath" -Force
-} else {
+}
+else {
     Write-Color "[+] Creating backup at app.asar.bak" "Gray"
     Copy-Item -Path "$asarPath" -Destination "$asarPath.bak"
 }
@@ -166,12 +159,13 @@ if (Test-Path $unpackedDir) {
 Set-Location $resourcesDir
 try {
     if (-not (Get-Command npx -ErrorAction SilentlyContinue)) {
-         Write-Color "[!] npx not found. Make sure Node.js is installed correctly." "Red"
-         Pause
-         exit 1
+        Write-Color "[!] npx not found. Make sure Node.js is installed correctly." "Red"
+        Pause
+        exit 1
     }
     cmd /c "npx -y asar extract app.asar app_unpacked"
-} catch {
+}
+catch {
     Write-Color "[!] Failed to unpack asar: $_" "Red"
     Pause
     exit 1
@@ -183,9 +177,11 @@ $tempJsPath = Join-Path $env:TEMP "wemod_patcher_temp.js"
 try {
     Set-Content -Path $tempJsPath -Value $patcherJsContent -Encoding UTF8
     node $tempJsPath "$unpackedDir"
-} catch {
+}
+catch {
     Write-Color "[!] Patch script execution failed: $_" "Red"
-} finally {
+}
+finally {
     if (Test-Path $tempJsPath) { Remove-Item $tempJsPath }
 }
 
@@ -193,7 +189,8 @@ try {
 Write-Color "[*] Repacking app.asar..." "Cyan"
 try {
     cmd /c "npx -y asar pack app_unpacked app.asar"
-} catch {
+}
+catch {
     Write-Color "[!] Failed to repack asar. Restoring backup..." "Red"
     if (Test-Path "$asarPath.bak") {
         Move-Item "$asarPath.bak" $asarPath -Force
