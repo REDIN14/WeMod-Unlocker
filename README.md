@@ -26,7 +26,7 @@ This installer performs targeted, character-exact patching on the WeMod source f
 
 ## ⚠️ Requirements
 - [Node.js](https://nodejs.org/) (Required for patching logic).
-- WeMod installed on Windows in C drivr.
+- WeMod installed on Windows in C drive.
 
 ---
 *Disclaimer: This project is for educational purposes. Support developers by purchasing Pro if you enjoy the software.*
