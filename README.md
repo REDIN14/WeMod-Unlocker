@@ -1,4 +1,4 @@
-# WeMod Pro Unlocker
+# Wand (WeMod) Pro Unlocker
 
 A robust, one-click installer to unlock WeMod Pro features locally.
 
